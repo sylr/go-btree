@@ -72,7 +72,7 @@ func testIntAllRev(t *BTree[*testInt]) (out []*testInt) {
 	return
 }
 
-func TestBTreeG(t *testing.T) {
+func TestBTree(t *testing.T) {
 	tr := New[*testInt](*btreeDegree)
 	const treeSize = 100
 	for i := 0; i < 10; i++ {
@@ -129,7 +129,7 @@ func TestBTreeG(t *testing.T) {
 	}
 }
 
-func ExampleBTreeG() {
+func ExampleBTree() {
 	tr := New[*testInt](*btreeDegree)
 	for i := 0; i < 10; i++ {
 		ti := testInt(i)
@@ -223,6 +223,17 @@ func TestAscendRangeG(t *testing.T) {
 	})
 	if want := intRange(100, false)[40:51]; !reflect.DeepEqual(got, want) {
 		t.Fatalf("ascendrange:\n got: %v\nwant: %v", got, want)
+	}
+}
+
+func TestAscendSeq(t *testing.T) {
+	tr := New[*testInt](2)
+	for _, v := range rand.Perm(100) {
+		tr.ReplaceOrInsert(newTestInt(v))
+	}
+	var got []*testInt
+	for i := range tr.AscendSeq() {
+		got = append(got, i)
 	}
 }
 
@@ -460,8 +471,8 @@ func BenchmarkAscendG(b *testing.B) {
 		tr.ReplaceOrInsert(newTestInt(v))
 	}
 	sort.Ints(arr)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		j := 0
 		tr.Ascend(func(item *testInt) bool {
 			if int(*item) != arr[j] {
@@ -470,6 +481,44 @@ func BenchmarkAscendG(b *testing.B) {
 			j++
 			return true
 		})
+	}
+}
+
+func BenchmarkAscendSeqG(b *testing.B) {
+	arr := rand.Perm(benchmarkTreeSize)
+	tr := New[*testInt](*btreeDegree)
+	for _, v := range arr {
+		tr.ReplaceOrInsert(newTestInt(v))
+	}
+	sort.Ints(arr)
+
+	for b.Loop() {
+		j := 0
+		for item := range tr.AscendSeq() {
+			if int(*item) != arr[j] {
+				b.Fatalf("mismatch: expected: %v, got %v", arr[j], item)
+			}
+			j++
+		}
+	}
+}
+
+func BenchmarkAscendSeq2G(b *testing.B) {
+	arr := rand.Perm(benchmarkTreeSize)
+	tr := New[*testInt](*btreeDegree)
+	for _, v := range arr {
+		tr.ReplaceOrInsert(newTestInt(v))
+	}
+	sort.Ints(arr)
+
+	for b.Loop() {
+		j := 0
+		for item := range tr.AscendSeq2() {
+			if int(*item) != arr[j] {
+				b.Fatalf("mismatch: expected: %v, got %v", arr[j], item)
+			}
+			j++
+		}
 	}
 }
 

@@ -58,6 +58,7 @@ package btree
 import (
 	"fmt"
 	"io"
+	"iter"
 	"sort"
 	"strings"
 	"sync"
@@ -544,6 +545,74 @@ func (n *node[T]) iterate(dir direction, start, stop optionalItem[T], includeSta
 	return hit, true
 }
 
+func (n *node[T]) iterateSeq(dir direction, start, stop optionalItem[T], includeStart bool, hit bool, yield func(T) bool) (bool, bool) {
+	var ok, found bool
+	var index int
+	switch dir {
+	case ascend:
+		if start.valid {
+			index, _ = n.items.find(start.item)
+		}
+		for i := index; i < len(n.items); i++ {
+			if len(n.children) > 0 {
+				if hit, ok = n.children[i].iterateSeq(dir, start, stop, includeStart, hit, yield); !ok {
+					return hit, false
+				}
+			}
+			if !includeStart && !hit && start.valid && !start.item.Less(n.items[i]) {
+				hit = true
+				continue
+			}
+			hit = true
+			if stop.valid && !n.items[i].Less(stop.item) {
+				return hit, false
+			}
+			if !yield(n.items[i]) {
+				return hit, false
+			}
+		}
+		if len(n.children) > 0 {
+			if hit, ok = n.children[len(n.children)-1].iterateSeq(dir, start, stop, includeStart, hit, yield); !ok {
+				return hit, false
+			}
+		}
+	case descend:
+		if start.valid {
+			index, found = n.items.find(start.item)
+			if !found {
+				index = index - 1
+			}
+		} else {
+			index = len(n.items) - 1
+		}
+		for i := index; i >= 0; i-- {
+			if start.valid && !n.items[i].Less(start.item) {
+				if !includeStart || hit || start.item.Less(n.items[i]) {
+					continue
+				}
+			}
+			if len(n.children) > 0 {
+				if hit, ok = n.children[i+1].iterateSeq(dir, start, stop, includeStart, hit, yield); !ok {
+					return hit, false
+				}
+			}
+			if stop.valid && !stop.item.Less(n.items[i]) {
+				return hit, false //	continue
+			}
+			hit = true
+			if !yield(n.items[i]) {
+				return hit, false
+			}
+		}
+		if len(n.children) > 0 {
+			if hit, ok = n.children[0].iterate(dir, start, stop, includeStart, hit, yield); !ok {
+				return hit, false
+			}
+		}
+	}
+	return hit, true
+}
+
 // print is used for testing/debugging purposes.
 //
 //nolint:unused
@@ -712,6 +781,26 @@ func (t *BTree[T]) Ascend(iterator ItemIterator[T]) {
 		return
 	}
 	t.root.iterate(ascend, empty[T](), empty[T](), false, false, iterator)
+}
+
+func (t *BTree[T]) AscendSeq() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		if t.root == nil {
+			return
+		}
+		t.root.iterate(ascend, empty[T](), empty[T](), false, true, func(item T) bool {
+			return yield(item)
+		})
+	}
+}
+
+func (t *BTree[T]) AscendSeq2() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		if t.root == nil {
+			return
+		}
+		t.root.iterateSeq(ascend, empty[T](), empty[T](), false, true, yield)
+	}
 }
 
 // DescendRange calls the iterator for every value in the tree within the range

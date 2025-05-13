@@ -14,4 +14,4 @@
 
 module sylr.dev/btree/v2
 
-go 1.20
+go 1.24
